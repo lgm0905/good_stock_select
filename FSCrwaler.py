@@ -7,14 +7,13 @@ import time
 import pandas as pd
 import csv
 from selenium import webdriver
-import OpenDartReader
 
 
 def GetStockDataFrame():
     stock_df = pd.read_excel('data.xlsx', usecols=['단축코드', '한글 종목명'])
     return stock_df
 
-
+    
 def SelectQuarter(year, month, rng) :
     qtr_li = []
     
@@ -28,6 +27,10 @@ def SelectQuarter(year, month, rng) :
         if m % 3 is 0 :
             qtr = str(year-2000) + "년 " + str(m) + "월"
             qtr_li.append(qtr)
+
+    print('---------------------------------')
+    print('설정 기간 : {} ~ {}'.format(qtr_li[0], qtr_li[-1]))
+    print('---------------------------------')
 
     return qtr_li
 
@@ -43,19 +46,19 @@ def FSCrawler(stocks):
 
     fs_dict = {'종목명' : [], '종목코드' : [], '시가총액' : [], 'ROE_3' : [], 'ROE_1' : [], 'OM_3' : [], 'OM_1' : []}
 
-    # temp_cnt = 0
+    temp_cnt = 0
 
     for idx, row in stocks.iterrows():
-        # if temp_cnt is 1 :
-        #     break
+        if temp_cnt is 40 :
+            break
 
-        # temp_cnt += 1
+        temp_cnt += 1
 
         code = row['단축코드']; name = row['한글 종목명']
         print(str(idx+1) + ' ' + name)
-
         ROE_3 = 0; ROE_1 = 0; OM_3 = 0; OM_1 = 0
-        cnt_3y = 0; cnt_1y = 0
+        cnt_3y_roe = 0; cnt_3y_om = 0
+        cnt_1y_roe = 0; cnt_1y_om = 0
 
         # ROE, 영업이익률 크롤링
         driver.get('https://stockplus.com/m/stocks/KOREA-A{}/analysis'.format(code))
@@ -73,36 +76,43 @@ def FSCrawler(stocks):
 
         for quarter, sales, operatingProfit, netIncome, operatingMargin, netProfitMargin, PER, PBR, ROE in zip(table.select('tr')[0].select('th'), table.select('tr')[1].select('td'), table.select('tr')[2].select('td'), table.select('tr')[3].select('td'), table.select('tr')[4].select('td'), table.select('tr')[5].select('td'), table.select('tr')[6].select('td'), table.select('tr')[7].select('td'), table.select('tr')[8].select('td')):
             if 'E' in quarter.text:
-                break
+                continue
             
             if quarter.text.split('월')[0]+'월' in qrt_3year : 
                 if ROE.text != '-' :
                     ROE_3 += float(ROE.text.replace(',',''))
+                    cnt_3y_roe += 1
                 if operatingMargin.text != '-' :  
                     OM_3 += float(operatingMargin.text.replace(',',''))
-                cnt_3y += 1
+                    cnt_3y_om += 1
 
             if quarter.text.split('월')[0]+'월' in qrt_1year : 
                 if ROE.text != '-' :
                     ROE_1 += float(ROE.text.replace(',',''))
+                    cnt_1y_roe += 1
                 if operatingMargin.text != '-' :
                     OM_1 += float(operatingMargin.text.replace(',',''))
-                cnt_1y += 1
+                    cnt_1y_om += 1
         
-        if cnt_3y is not 0 : 
-            fs_dict['ROE_3'].append(round(ROE_3/cnt_3y, 3))
-            fs_dict['OM_3'].append(round(OM_3/cnt_3y, 3))
+        if cnt_3y_roe is not 0 : 
+            fs_dict['ROE_3'].append(round(ROE_3/cnt_3y_roe, 3))
         else :
-            fs_dict['ROE_3'].append(0)
-            fs_dict['OM_3'].append(0)
-
-        if cnt_1y is not 0 : 
-            fs_dict['ROE_1'].append(round(ROE_1/cnt_1y,3))
-            fs_dict['OM_1'].append(round(OM_1/cnt_1y,3))
+            fs_dict['ROE_3'].append(NaN)
+            
+        if cnt_3y_om is not 0 : 
+            fs_dict['OM_3'].append(round(OM_3/cnt_3y_om, 3))
         else :
-            fs_dict['ROE_1'].append(0)
-            fs_dict['OM_1'].append(0)
+            fs_dict['OM_3'].append(NaN)
 
+        if cnt_1y_roe is not 0 : 
+            fs_dict['ROE_1'].append(round(ROE_1/cnt_1y_roe,3))
+        else :
+            fs_dict['ROE_1'].append(NaN)
+            
+        if cnt_1y_om is not 0 : 
+            fs_dict['OM_1'].append(round(OM_1/cnt_1y_om,3))
+        else :
+            fs_dict['OM_1'].append(NaN)
 
         # 시가총액 크롤링
         driver.get('https://stockplus.com/m/stocks/KOREA-A{}'.format(code))
@@ -132,7 +142,8 @@ def SetRank(fs_dict):
 
 
 def ChangeColName(df) :
-    df.rename(columns={ 'ROE_3':            '지난 3년 ROE', 
+    df.rename(columns={ '시가총액' :          '시가총액(억)',
+                        'ROE_3':            '지난 3년 ROE', 
                         'ROE_1':            '최근 ROE', 
                         'OM_3' :            '지난 3년 영업이익률', 
                         'OM_1' :            '최근 영업이익률',
