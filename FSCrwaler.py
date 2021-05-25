@@ -34,7 +34,6 @@ def SelectQuarter(year, month, rng) :
 
     return qtr_li
 
-
 def FSCrawler(stocks):
     # driver = webdriver.PhantomJS(os.path.join('./phantomjs/phantomjs-2.1.1-linux-x86_64/bin/phantomjs'))
     driver = webdriver.PhantomJS(os.path.join('./phantomjs/phantomjs-2.1.1-macosx/bin/phantomjs'))
@@ -49,7 +48,7 @@ def FSCrawler(stocks):
     temp_cnt = 0
 
     for idx, row in stocks.iterrows():
-        if temp_cnt is 40 :
+        if temp_cnt is 2 :
             break
 
         temp_cnt += 1
@@ -60,6 +59,7 @@ def FSCrawler(stocks):
         cnt_3y_roe = 0; cnt_3y_om = 0
         cnt_1y_roe = 0; cnt_1y_om = 0
 
+        # for qrt_1year
         # ROE, 영업이익률 크롤링
         driver.get('https://stockplus.com/m/stocks/KOREA-A{}/analysis'.format(code))
         time.sleep(1.5)
@@ -78,13 +78,13 @@ def FSCrawler(stocks):
             if 'E' in quarter.text:
                 continue
             
-            if quarter.text.split('월')[0]+'월' in qrt_3year : 
-                if ROE.text != '-' :
-                    ROE_3 += float(ROE.text.replace(',',''))
-                    cnt_3y_roe += 1
-                if operatingMargin.text != '-' :  
-                    OM_3 += float(operatingMargin.text.replace(',',''))
-                    cnt_3y_om += 1
+            # if quarter.text.split('월')[0]+'월' in qrt_3year : 
+            #     if ROE.text != '-' :
+            #         ROE_3 += float(ROE.text.replace(',',''))
+            #         cnt_3y_roe += 1
+            #     if operatingMargin.text != '-' :  
+            #         OM_3 += float(operatingMargin.text.replace(',',''))
+            #         cnt_3y_om += 1
 
             if quarter.text.split('월')[0]+'월' in qrt_1year : 
                 if ROE.text != '-' :
@@ -93,7 +93,26 @@ def FSCrawler(stocks):
                 if operatingMargin.text != '-' :
                     OM_1 += float(operatingMargin.text.replace(',',''))
                     cnt_1y_om += 1
-        
+
+        # for qrt_3year
+        # driver.get("https://www.stockplus.com/m/stocks/KOREA-A{}/analysis".format(code))
+        button = driver.find_elements_by_class_name("navW")
+        button[0].find_elements_by_tag_name("li")[1].find_elements_by_tag_name("a")[0].click()
+
+        page_source = driver.page_source
+        soup = bs(page_source, features="lxml")
+        table = soup.select_one('.type02 tbody')
+
+        for quarter, sales, operatingProfit, netIncome, operatingMargin, netProfitMargin, PER, PBR, ROE in zip(table.select('tr')[0].select('th'), table.select('tr')[1].select('td'), table.select('tr')[2].select('td'), table.select('tr')[3].select('td'), table.select('tr')[4].select('td'), table.select('tr')[5].select('td'), table.select('tr')[6].select('td'), table.select('tr')[7].select('td'), table.select('tr')[8].select('td')):
+            if quarter.text.split('월')[0]+'월' in qrt_3year : 
+                if ROE.text != '-' :
+                    ROE_3 += float(ROE.text.replace(',',''))
+                    cnt_3y_roe += 1
+                if operatingMargin.text != '-' :  
+                    OM_3 += float(operatingMargin.text.replace(',',''))
+                    cnt_3y_om += 1
+
+
         if cnt_3y_roe is not 0 : 
             fs_dict['ROE_3'].append(round(ROE_3/cnt_3y_roe, 3))
         else :
